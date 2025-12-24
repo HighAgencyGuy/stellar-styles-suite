@@ -4,12 +4,14 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
+import { WhatsAppWidget } from "@/components/WhatsAppWidget";
 import Index from "./pages/Index";
 import AboutPage from "./pages/AboutPage";
 import StylesPage from "./pages/StylesPage";
 import PricesPage from "./pages/PricesPage";
 import BookingPage from "./pages/BookingPage";
 import ContactPage from "./pages/ContactPage";
+import TrackAppointmentPage from "./pages/TrackAppointmentPage";
 import NotFound from "./pages/NotFound";
 import AdminAuthPage from "./pages/AdminAuthPage";
 import AdminDashboard from "./pages/AdminDashboard";
@@ -26,6 +28,7 @@ const App = () => (
       <AuthProvider>
         <Toaster />
         <Sonner />
+        <WhatsAppWidget />
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
@@ -34,6 +37,7 @@ const App = () => (
             <Route path="/prices" element={<PricesPage />} />
             <Route path="/book" element={<BookingPage />} />
             <Route path="/contact" element={<ContactPage />} />
+            <Route path="/track-appointment" element={<TrackAppointmentPage />} />
             {/* Admin Routes */}
             <Route path="/admin/login" element={<AdminAuthPage />} />
             <Route path="/admin" element={<AdminDashboard />} />
