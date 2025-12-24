@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -15,8 +15,10 @@ import {
   Users,
   Search,
   Calendar,
-  Edit,
-  Trash2
+  Trash2,
+  Upload,
+  Image,
+  X
 } from 'lucide-react';
 
 interface CustomerRecord {
@@ -34,6 +36,7 @@ interface CustomerRecord {
 export default function AdminCustomersPage() {
   const { user, isAdmin, isLoading } = useAuth();
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [records, setRecords] = useState<CustomerRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,6 +50,9 @@ export default function AdminCustomersPage() {
   const [styleDone, setStyleDone] = useState('');
   const [notes, setNotes] = useState('');
   const [appointmentDate, setAppointmentDate] = useState('');
+  const [selectedPhotos, setSelectedPhotos] = useState<File[]>([]);
+  const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
 
   useEffect(() => {
     if (isAdmin) {
@@ -75,6 +81,51 @@ export default function AdminCustomersPage() {
     }
   };
 
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) {
+      setSelectedPhotos(prev => [...prev, ...files]);
+      const newPreviews = files.map(file => URL.createObjectURL(file));
+      setPhotoPreviews(prev => [...prev, ...newPreviews]);
+    }
+  };
+
+  const removePhoto = (index: number) => {
+    setSelectedPhotos(prev => prev.filter((_, i) => i !== index));
+    setPhotoPreviews(prev => {
+      URL.revokeObjectURL(prev[index]);
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
+  const uploadPhotos = async (): Promise<string[]> => {
+    if (selectedPhotos.length === 0) return [];
+
+    const uploadedUrls: string[] = [];
+
+    for (const file of selectedPhotos) {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `customer-${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('styles')
+        .upload(`customers/${fileName}`, file);
+
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        continue;
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('styles')
+        .getPublicUrl(`customers/${fileName}`);
+
+      uploadedUrls.push(publicUrl);
+    }
+
+    return uploadedUrls;
+  };
+
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -88,8 +139,12 @@ export default function AdminCustomersPage() {
     }
 
     setSaving(true);
+    setUploadingPhotos(selectedPhotos.length > 0);
 
     try {
+      // Upload photos first
+      const photoUrls = await uploadPhotos();
+
       const { error } = await supabase
         .from('customer_records')
         .insert({
@@ -98,6 +153,7 @@ export default function AdminCustomersPage() {
           style_done: styleDone,
           notes: notes || null,
           appointment_date: appointmentDate,
+          photos: photoUrls.length > 0 ? photoUrls : null,
         });
 
       if (error) throw error;
@@ -113,6 +169,9 @@ export default function AdminCustomersPage() {
       setStyleDone('');
       setNotes('');
       setAppointmentDate('');
+      setSelectedPhotos([]);
+      photoPreviews.forEach(url => URL.revokeObjectURL(url));
+      setPhotoPreviews([]);
       setShowForm(false);
 
       fetchRecords();
@@ -125,13 +184,24 @@ export default function AdminCustomersPage() {
       });
     } finally {
       setSaving(false);
+      setUploadingPhotos(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string, photos: string[] | null) => {
     if (!confirm('Are you sure you want to delete this record?')) return;
 
     try {
+      // Delete photos from storage
+      if (photos && photos.length > 0) {
+        for (const photoUrl of photos) {
+          const fileName = photoUrl.split('/').pop();
+          if (fileName) {
+            await supabase.storage.from('styles').remove([`customers/${fileName}`]);
+          }
+        }
+      }
+
       const { error } = await supabase
         .from('customer_records')
         .delete()
@@ -275,19 +345,71 @@ export default function AdminCustomersPage() {
                   />
                 </div>
 
+                {/* Photo Upload Section */}
+                <div className="space-y-2">
+                  <Label>Photos</Label>
+                  <div className="flex flex-wrap gap-4">
+                    {/* Photo Previews */}
+                    {photoPreviews.map((preview, index) => (
+                      <div key={index} className="relative w-24 h-24">
+                        <img
+                          src={preview}
+                          alt={`Preview ${index + 1}`}
+                          className="w-full h-full object-cover rounded-lg"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removePhoto(index)}
+                          className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1 hover:bg-destructive/90"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                    
+                    {/* Add Photo Button */}
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-24 h-24 border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-primary transition-colors"
+                    >
+                      <Image className="w-6 h-6 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground mt-1">Add Photo</span>
+                    </div>
+                    
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={handlePhotoSelect}
+                      className="hidden"
+                    />
+                  </div>
+                </div>
+
                 <div className="flex gap-2">
                   <Button type="submit" className="btn-gold" disabled={saving}>
                     {saving ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        {uploadingPhotos ? 'Uploading Photos...' : 'Saving...'}
+                      </>
                     ) : (
-                      <Plus className="w-4 h-4 mr-2" />
+                      <>
+                        <Plus className="w-4 h-4 mr-2" />
+                        Save Record
+                      </>
                     )}
-                    Save Record
                   </Button>
                   <Button 
                     type="button" 
                     variant="outline"
-                    onClick={() => setShowForm(false)}
+                    onClick={() => {
+                      setShowForm(false);
+                      setSelectedPhotos([]);
+                      photoPreviews.forEach(url => URL.revokeObjectURL(url));
+                      setPhotoPreviews([]);
+                    }}
                   >
                     Cancel
                   </Button>
@@ -318,6 +440,20 @@ export default function AdminCustomersPage() {
               <Card key={record.id} className="card-elegant">
                 <CardContent className="p-4 md:p-6">
                   <div className="flex flex-col md:flex-row md:items-start gap-4">
+                    {/* Photos */}
+                    {record.photos && record.photos.length > 0 && (
+                      <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0">
+                        {record.photos.map((photo, index) => (
+                          <img
+                            key={index}
+                            src={photo}
+                            alt={`${record.customer_name} - Style ${index + 1}`}
+                            className="w-20 h-20 object-cover rounded-lg flex-shrink-0"
+                          />
+                        ))}
+                      </div>
+                    )}
+
                     <div className="flex-1 space-y-2">
                       <div className="flex items-start justify-between">
                         <div>
@@ -345,13 +481,10 @@ export default function AdminCustomersPage() {
                     </div>
 
                     <div className="flex gap-2">
-                      <Button size="icon" variant="ghost">
-                        <Edit className="w-4 h-4" />
-                      </Button>
                       <Button 
                         size="icon" 
                         variant="ghost"
-                        onClick={() => handleDelete(record.id)}
+                        onClick={() => handleDelete(record.id, record.photos)}
                       >
                         <Trash2 className="w-4 h-4 text-destructive" />
                       </Button>
