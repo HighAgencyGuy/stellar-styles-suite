@@ -11,8 +11,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Calendar, Phone, CheckCircle } from "lucide-react";
+import { Calendar, Phone, CheckCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 const services = [
   "Box Braids",
@@ -43,16 +44,18 @@ const timeSlots = [
 
 export default function BookingPage() {
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
+    email: "",
     date: "",
     time: "",
     service: "",
     notes: "",
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!formData.name || !formData.phone || !formData.date || !formData.time || !formData.service) {
@@ -60,10 +63,30 @@ export default function BookingPage() {
       return;
     }
 
-    // In a real app, this would send to a backend
-    console.log("Booking submitted:", formData);
-    setIsSubmitted(true);
-    toast.success("Booking request submitted successfully!");
+    setIsSubmitting(true);
+
+    try {
+      const { error } = await supabase.from('appointments').insert({
+        customer_name: formData.name,
+        customer_phone: formData.phone,
+        customer_email: formData.email || null,
+        preferred_date: formData.date,
+        preferred_time: formData.time,
+        service_type: formData.service,
+        notes: formData.notes || null,
+        status: 'pending',
+      });
+
+      if (error) throw error;
+
+      setIsSubmitted(true);
+      toast.success("Booking request submitted successfully!");
+    } catch (err) {
+      console.error("Booking error:", err);
+      toast.error("Failed to submit booking. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleChange = (field: string, value: string) => {
@@ -107,6 +130,7 @@ export default function BookingPage() {
                   setFormData({
                     name: "",
                     phone: "",
+                    email: "",
                     date: "",
                     time: "",
                     service: "",
@@ -164,6 +188,18 @@ export default function BookingPage() {
                   placeholder="e.g., 0801 234 5678"
                   value={formData.phone}
                   onChange={(e) => handleChange("phone", e.target.value)}
+                  className="input-elegant"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="email">Email (Optional)</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="your@email.com"
+                  value={formData.email}
+                  onChange={(e) => handleChange("email", e.target.value)}
                   className="input-elegant"
                 />
               </div>
@@ -231,9 +267,13 @@ export default function BookingPage() {
                 />
               </div>
 
-              <Button type="submit" size="lg" className="w-full gap-2">
-                <Calendar className="w-5 h-5" />
-                Submit Booking Request
+              <Button type="submit" size="lg" className="w-full gap-2" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Calendar className="w-5 h-5" />
+                )}
+                {isSubmitting ? "Submitting..." : "Submit Booking Request"}
               </Button>
             </form>
           </div>
