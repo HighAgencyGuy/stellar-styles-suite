@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { 
   ArrowLeft, 
@@ -14,7 +15,8 @@ import {
   Trash2, 
   Loader2, 
   ImagePlus,
-  Star
+  Star,
+  Pencil
 } from 'lucide-react';
 
 interface GalleryStyle {
@@ -44,6 +46,13 @@ export default function AdminGalleryPage() {
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('');
   const [description, setDescription] = useState('');
+
+  // Edit dialog state
+  const [editingStyle, setEditingStyle] = useState<GalleryStyle | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editCategory, setEditCategory] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (isAdmin) {
@@ -208,6 +217,53 @@ export default function AdminGalleryPage() {
     }
   };
 
+  const openEditDialog = (style: GalleryStyle) => {
+    setEditingStyle(style);
+    setEditTitle(style.title);
+    setEditCategory(style.category);
+    setEditDescription(style.description || '');
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingStyle || !editTitle || !editCategory) return;
+
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('gallery_styles')
+        .update({
+          title: editTitle,
+          category: editCategory,
+          description: editDescription || null,
+        })
+        .eq('id', editingStyle.id);
+
+      if (error) throw error;
+
+      setStyles(styles.map(s => 
+        s.id === editingStyle.id 
+          ? { ...s, title: editTitle, category: editCategory, description: editDescription || null }
+          : s
+      ));
+
+      toast({
+        title: 'Updated',
+        description: 'Style details updated successfully',
+      });
+
+      setEditingStyle(null);
+    } catch (err) {
+      console.error('Update error:', err);
+      toast({
+        title: 'Update failed',
+        description: 'Failed to update style details',
+        variant: 'destructive',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -357,6 +413,14 @@ export default function AdminGalleryPage() {
                     <Button
                       size="icon"
                       variant="secondary"
+                      onClick={() => openEditDialog(style)}
+                      title="Edit details"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="secondary"
                       onClick={() => toggleFeatured(style.id, style.is_featured)}
                       title={style.is_featured ? 'Remove from featured' : 'Add to featured'}
                     >
@@ -385,6 +449,67 @@ export default function AdminGalleryPage() {
           </div>
         )}
       </main>
+
+      {/* Edit Dialog */}
+      <Dialog open={!!editingStyle} onOpenChange={() => setEditingStyle(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Style Details</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {editingStyle && (
+              <div className="w-full aspect-video rounded-lg overflow-hidden bg-muted mb-4">
+                <img 
+                  src={editingStyle.image_url} 
+                  alt={editingStyle.title}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="edit-title">Title</Label>
+              <Input
+                id="edit-title"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                className="input-elegant"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-category">Category</Label>
+              <Select value={editCategory} onValueChange={setEditCategory}>
+                <SelectTrigger className="input-elegant">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((cat) => (
+                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-description">Description</Label>
+              <Input
+                id="edit-description"
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                placeholder="Brief description"
+                className="input-elegant"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingStyle(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveEdit} disabled={saving} className="btn-gold">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

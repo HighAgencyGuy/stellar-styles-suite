@@ -54,16 +54,15 @@ export default function StylesPage() {
 
       if (error) throw error;
 
-      if (data && data.length > 0) {
-        setStyles(data);
-        // Extract unique categories
-        const uniqueCategories = ["All", ...new Set(data.map(s => s.category))];
-        setCategories(uniqueCategories);
-      } else {
-        // Use default styles if database is empty
-        setStyles(defaultStyles);
-        setCategories(["All", "Braids", "Natural", "Weave", "Special Occasion"]);
-      }
+      // Always include default styles, then add uploaded ones
+      const uploadedStyles = data || [];
+      const allStyles = [...uploadedStyles, ...defaultStyles];
+      
+      setStyles(allStyles);
+      
+      // Extract unique categories from all styles
+      const uniqueCategories = ["All", ...new Set(allStyles.map(s => s.category))];
+      setCategories(uniqueCategories);
     } catch (err) {
       console.error('Error fetching styles:', err);
       // Use default styles on error

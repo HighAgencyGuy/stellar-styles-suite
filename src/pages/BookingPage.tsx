@@ -116,15 +116,20 @@ export default function BookingPage() {
               We'll confirm your appointment via WhatsApp shortly.
             </p>
             <div className="flex flex-wrap justify-center gap-4">
-              <a href="https://wa.me/2348000000000" target="_blank" rel="noopener noreferrer">
+              <a href="https://wa.me/2348141142258" target="_blank" rel="noopener noreferrer">
                 <Button size="lg" variant="whatsapp" className="gap-2">
                   <Phone className="w-5 h-5" />
                   Chat on WhatsApp
                 </Button>
               </a>
+              <a href="/track-appointment">
+                <Button size="lg" variant="outline" className="gap-2">
+                  Track Appointment
+                </Button>
+              </a>
               <Button
                 size="lg"
-                variant="outline"
+                variant="secondary"
                 onClick={() => {
                   setIsSubmitted(false);
                   setFormData({
@@ -281,12 +286,19 @@ export default function BookingPage() {
           <p className="text-center text-sm text-muted-foreground mt-6">
             Prefer to chat? 
             <a
-              href="https://wa.me/2348000000000"
+              href="https://wa.me/2348141142258"
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary hover:underline ml-1"
             >
               Contact us on WhatsApp
+            </a>
+            {" | "}
+            <a
+              href="/track-appointment"
+              className="text-primary hover:underline"
+            >
+              Track your appointment
             </a>
           </p>
         </div>
